@@ -7,6 +7,6 @@ import java.io.Serializable;
 @Embeddable
 @Data @NoArgsConstructor @AllArgsConstructor
 public class CongThucId implements Serializable {
-    private String maSanPham;
+    private String sanPham;
     private String maNguyenLieu;
 }

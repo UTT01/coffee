@@ -1,23 +1,27 @@
 package com.example.serviceproduct.entity;
 
-import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.example.serviceproduct.entity.keys.CongThucId;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import lombok.*;
 
 @Entity
 @Table(name = "CongThuc")
-@Data @NoArgsConstructor @AllArgsConstructor
+@IdClass(CongThucId.class)
+@Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class CongThuc {
-    @EmbeddedId
-    private CongThucId id;
 
-    @JsonIgnore
+    @Id
     @ManyToOne(fetch = FetchType.LAZY)
-    @MapsId("maSanPham")
-    @JoinColumn(name = "maSanPham")
+    @JoinColumn(name = "maSanPham") // Tên cột khóa ngoại trong DB
+    @JsonIgnore // Cực kỳ quan trọng: Tránh lỗi vòng lặp vô tận (StackOverflow) khi trả về JSON
     private SanPham sanPham;
 
+    @Id
+    @Column(name = "maNguyenLieu")
+    private String maNguyenLieu;
 
     @Column(name = "soLuong")
     private Double soLuong;

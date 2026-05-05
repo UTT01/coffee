@@ -17,6 +17,7 @@ public class ThanhToanDTO {
     @Data
     @AllArgsConstructor
     public static class BillItemDTO {
+        private String maSanPham;
         private String tenSanPham;
         private Integer soLuong;
         private Double giaBan;
