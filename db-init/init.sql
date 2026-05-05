@@ -89,21 +89,6 @@ CREATE TABLE [dbo].[doanhthu](
 GO
 INSERT [dbo].[ca] VALUES (N'CA003', N'NV001', '2026-04-12', 1371000.00, N'Chiều 12/04', N'Mở', '16:59:15', NULL)
 GO
-<<<<<<< HEAD
-CREATE TABLE [dbo].[phieuthuchi](
-	[maPhieu] [varchar](50) NOT NULL,
-	[ghiChu] [nvarchar](255) NULL,
-	[loaiPhieu] [nvarchar](255) NOT NULL,
-	[maCa] [varchar](50) NOT NULL,
-	[soTien] [decimal](15, 2) NOT NULL,
-PRIMARY KEY CLUSTERED 
-(
-	[maPhieu] ASC
-)WITH (PAD_INDEX = OFF, STATISTICS_NORECOMPUTE = OFF, IGNORE_DUP_KEY = OFF, ALLOW_ROW_LOCKS = ON, ALLOW_PAGE_LOCKS = ON, OPTIMIZE_FOR_SEQUENTIAL_KEY = OFF) ON [PRIMARY]
-) ON [PRIMARY]
-GO
-=======
->>>>>>> c18f9dd6d403e3e90dd2b342a984881f2ccbafb7
 
 -- =============================================
 -- 4. SERVICE NOTIFICATION
@@ -147,7 +132,13 @@ CREATE TABLE [dbo].[SanPham](
 	[trangThai] [nvarchar](20) NULL
 );
 GO
-
+CREATE TABLE [dbo].[CongThuc](
+    [maSanPham] [varchar](20) NOT NULL,
+    [maNguyenLieu] [varchar](20) NOT NULL,
+    [soLuong] [float] NULL,
+    CONSTRAINT [PK_CongThuc] PRIMARY KEY ([maSanPham], [maNguyenLieu]),
+    CONSTRAINT [FK_CongThuc_SanPham] FOREIGN KEY([maSanPham]) REFERENCES [dbo].[SanPham] ([maSanPham]) ON DELETE CASCADE
+);
 -- =============================================
 -- 6. SERVICE PROMOTION
 -- =============================================

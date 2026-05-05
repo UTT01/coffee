@@ -1,16 +1,24 @@
 package com.example.servicecafe.service;
 
+import com.example.servicecafe.client.SanPhamClient;
+import com.example.servicecafe.client.StoreClient;
 import com.example.servicecafe.dto.PaymentDTO;
+import com.example.servicecafe.dto.TruKhoRequest;
+import com.example.servicecafe.dto.CongThucDTO;
+import com.example.servicecafe.dto.SanPhamResponseDTO;
 import com.example.servicecafe.entity.*;
 import com.example.servicecafe.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.jpa.repository.Modifying;
-import org.springframework.messaging.simp.SimpMessagingTemplate; // Đảm bảo đã import
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ThanhToanService {
@@ -21,10 +29,15 @@ public class ThanhToanService {
     @Autowired
     private ChiTietHDRepository chiTietRepository;
 
-    // 1. PHẢI CÓ DÒNG NÀY thì messagingTemplate mới chạy được
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
+    // Inject 2 Feign Client vào đây
+    @Autowired
+    private SanPhamClient sanPhamClient;
+
+    @Autowired
+    private StoreClient storeClient;
 
     @Modifying
     @Transactional
@@ -35,16 +48,13 @@ public class ThanhToanService {
 
             HoaDon hd = null;
 
-            // 1. CHẶN LỖI: Chỉ tìm kiếm nếu ID không phải null/rỗng
             if (inputMaHD != null && !inputMaHD.trim().isEmpty() && !"undefined".equals(inputMaHD)) {
                 hd = hoaDonRepository.findById(inputMaHD).orElse(null);
             }
 
-            // 2. Nếu không tìm thấy hoặc ID truyền vào là null -> Tạo mới
             if (hd == null) {
                 System.out.println(">>> [INFO] Đang tạo hóa đơn mới hoàn toàn...");
                 hd = new HoaDon();
-                // Tự sinh mã nếu chưa có
                 String finalMaHD = (inputMaHD != null && !inputMaHD.trim().isEmpty() && !"undefined".equals(inputMaHD))
                         ? inputMaHD
                         : "HD" + System.currentTimeMillis();
@@ -52,7 +62,6 @@ public class ThanhToanService {
                 hd.setThoiGianVao(LocalDateTime.now().minusMinutes(30));
             }
 
-            // 3. Cập nhật các thông tin còn lại
             hd.setMaBan(dto.getMaBan());
             hd.setMaCa(dto.getMaCa());
             hd.setPhuongThucThanhToan(dto.getPhuongThucThanhToan());
@@ -61,10 +70,11 @@ public class ThanhToanService {
             hd.setTrangThaiThanhToan("Paid");
             hd.setThoiGianRa(LocalDateTime.now());
 
-            // 4. Lưu Header
             HoaDon savedHd = hoaDonRepository.save(hd);
 
-            // 5. Lưu Chi tiết (Phần này ông đã sửa ok rồi, nhớ gán mã chi tiết nhé)
+            // BẢNG MAP ĐỂ CỘNG DỒN NGUYÊN LIỆU (Tránh gửi lặp nguyên liệu)
+            Map<String, Double> mapNguyenLieuCanTru = new HashMap<>();
+
             if (dto.getItems() != null && !dto.getItems().isEmpty()) {
                 chiTietRepository.deleteByMaHoaDon(savedHd);
                 chiTietRepository.flush();
@@ -78,10 +88,53 @@ public class ThanhToanService {
                     ct.setMaSanPham(itemDto.getMaSanPham());
                     ct.setSoLuong(itemDto.getSoLuong());
                     ct.setDonGia(itemDto.getGiaBan());
-                    ct.setGhiChu(itemDto.getGhiChu());
+                    // ct.setGhiChu(itemDto.getGhiChu());
                     chiTiets.add(ct);
+
+                    // ==========================================
+                    // LOGIC GỌI SANG SERVICE-PRODUCT LẤY CÔNG THỨC
+                    // ==========================================
+                    try {
+                        SanPhamResponseDTO sanPham = sanPhamClient.getSanPhamById(itemDto.getMaSanPham());
+                        if (sanPham != null && sanPham.getDanhSachCongThuc() != null) {
+                            for (CongThucDTO ctDTO : sanPham.getDanhSachCongThuc()) {
+                                String maNL = ctDTO.getMaNguyenLieu();
+                                // Số lượng cần trừ = Số lượng NL trong 1 công thức * Số lượng món khách gọi
+                                double soLuongTru = ctDTO.getSoLuong() * itemDto.getSoLuong();
+                                
+                                // Cộng dồn vào Map
+                                mapNguyenLieuCanTru.put(maNL, mapNguyenLieuCanTru.getOrDefault(maNL, 0.0) + soLuongTru);
+                            }
+                        }
+                    } catch (Exception e) {
+                        System.err.println(">>> [WARNING] Không lấy được công thức cho SP: " + itemDto.getMaSanPham() + ". Lỗi: " + e.getMessage());
+                    }
                 }
                 chiTietRepository.saveAll(chiTiets);
+            }
+
+            // ==========================================
+            // LOGIC GỌI SANG SERVICE-STORE ĐỂ TRỪ KHO
+            // ==========================================
+            if (!mapNguyenLieuCanTru.isEmpty()) {
+                List<TruKhoRequest> dsTruKho = new ArrayList<>();
+                for (Map.Entry<String, Double> entry : mapNguyenLieuCanTru.entrySet()) {
+                    TruKhoRequest req = new TruKhoRequest();
+                    req.setMaNguyenLieu(entry.getKey());
+                    req.setSoLuongTru(entry.getValue());
+                    dsTruKho.add(req);
+                }
+
+                try {
+                    System.out.println(">>> [INFO] Đang gọi ServiceStore trừ kho...");
+                    storeClient.truKhoNguyenLieu(dsTruKho);
+                    System.out.println(">>> [SUCCESS] Đã trừ kho thành công!");
+                } catch (Exception e) {
+                    System.err.println(">>> [ERROR] Lỗi khi trừ kho: " + e.getMessage());
+                    // Lưu ý: Nếu trừ kho lỗi, Transactional ở đây có thể rollback hóa đơn.
+                    // Nếu không muốn hóa đơn bị hủy khi kho lỗi, hãy bọc kỹ try-catch này và không throw.
+                    throw new RuntimeException("Thanh toán thất bại do lỗi trừ kho: " + e.getMessage());
+                }
             }
 
             messagingTemplate.convertAndSend("/topic/tables", dto.getMaBan());
