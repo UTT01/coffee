@@ -1,6 +1,7 @@
 package com.example.serviceproduct.controller;
 
 import com.example.serviceproduct.dto.response.SanPhamResponse;
+import com.example.serviceproduct.entity.CongThuc;
 import com.example.serviceproduct.entity.SanPham;
 import com.example.serviceproduct.service.SanPhamService;
 import lombok.RequiredArgsConstructor;
@@ -21,6 +22,10 @@ public class SanPhamController {
     @GetMapping
     public ResponseEntity<List<SanPhamResponse>> getAll() {
         return ResponseEntity.ok(sanPhamService.getAllSanPham());
+    }
+    @GetMapping("/{id}")
+    public ResponseEntity<SanPhamResponse> getById(@PathVariable String id) {
+        return ResponseEntity.ok(sanPhamService.getSanPhamById(id));
     }
 
     // POST: /api/v1/san-pham

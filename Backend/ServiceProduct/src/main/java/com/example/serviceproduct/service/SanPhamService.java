@@ -4,9 +4,12 @@ import com.example.serviceproduct.dto.response.SanPhamResponse;
 import com.example.serviceproduct.entity.CongThuc;
 import com.example.serviceproduct.entity.LoaiSanPham;
 import com.example.serviceproduct.entity.SanPham;
+import com.example.serviceproduct.repository.CongThucRepository;
 import com.example.serviceproduct.repository.LoaiSanPhamRepository;
 import com.example.serviceproduct.repository.SanPhamRepository;
 import lombok.RequiredArgsConstructor;
+
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,8 +19,12 @@ import java.util.stream.Collectors;
 @Service
 @RequiredArgsConstructor
 public class SanPhamService {
+    @Autowired
     private final SanPhamRepository sanPhamRepository;
-    private final LoaiSanPhamRepository loaiSanPhamRepository;
+    @Autowired
+    private CongThucRepository congThucRepository;
+    @Autowired
+    private LoaiSanPhamRepository loaiSanPhamRepository;
     public List<SanPhamResponse> getAllSanPham() {
     List<SanPham> danhSach = sanPhamRepository.findAll();
 
@@ -64,5 +71,22 @@ public class SanPhamService {
     @Transactional
     public void deleteSanPham(String maSanPham) {
         sanPhamRepository.deleteById(maSanPham);
+    }
+    public SanPhamResponse getSanPhamById(String maSanPham) {
+        SanPham sp = sanPhamRepository.findById(maSanPham)
+                .orElseThrow(() -> new RuntimeException("Không tìm thấy sản phẩm có mã: " + maSanPham));
+
+        SanPhamResponse dto = new SanPhamResponse();
+        dto.setMaSanPham(sp.getMaSanPham());
+        dto.setTenSanPham(sp.getTenSanPham());
+        dto.setDonGia(sp.getDonGia());
+        dto.setDuongDanHinh(sp.getDuongDanHinh());
+        dto.setTrangThai(sp.getTrangThai());
+        if (sp.getLoaiSanPham() != null) {
+            dto.setMaLoaiSanPham(sp.getLoaiSanPham().getMaLoaiSanPham());
+            dto.setTenLoaiSanPham(sp.getLoaiSanPham().getTenLoaiSanPham());
+        }
+        dto.setDanhSachCongThuc(sp.getDanhSachCongThuc()); 
+        return dto;
     }
 }
